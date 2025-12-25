@@ -1,0 +1,44 @@
+shallow n reatained heap
+
+* shallow means thats class how much memory it will take  n
+retained :=toal emeory occupied by parenst  and its child too but only if child is not ref by other class 
+
+
+at we saw
+
+Heap usage continuously increasing
+
+GC running frequently
+
+Memory not dropping after GC
+
+📌 This is where you say:
+
+“This behavior indicated a memory leak rather than a temporary memory spike.”
+for heap analaysis alwas we neeed to see reatine dememor , 
+eclipse mat is  used to  figure out the heap error
+ XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/tmp/heapdump.hprof
+“We configured the JVM to generate heap dumps whenever OOM occurred.”
+“I analyzed the heap dump using Eclipse MAT to find memory leak suspects.”
+“We found that product search results were being cached in a HashMap without eviction. For each search request, large product lists were stored in memory, and the map kept growing during traffic spikes.”
+
+“I opened the heap dump in Eclipse MAT and started with the Leak Suspects Report.”
+
+📸 Screenshot you’d see:
+
+Pie chart of memory usage
+
+“Top consumers by retained heap”
+“In our  application, product details were cached to reduce DB calls. However, the cache key was derived from request parameters in a way that produced high cardinality.”
+
+This is very realistic.
+
+Concrete example (this impresses)
+String cacheKey = storeId + "-" + productId + "-" + timestamp;
+
+“We found that cache eviction was slower than insertion because cache keys included a high-resolution timestamp. 
+This caused each request to generate a new cache entry, leading to high key cardinality and zero reuse. 
+Although eviction policies were configured, the cache grew faster than it could evict entries.
+ We fixed it by redesigning the cache key to use productId and controlled invalidation instead of timestamps.”
+ “Because product pricing and availability were updated daily, so date-level granularity provided a good balance between freshness and cache reuse.”

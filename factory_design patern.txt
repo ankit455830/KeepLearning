@@ -1,0 +1,43 @@
+public interface Car {
+    void drive();
+}
+Step 2️⃣ Create concrete implementations
+java
+Copy code
+public class TataCar implements Car {
+    @Override
+    public void drive() {
+        System.out.println("Tata car is driving");
+    }
+}
+java
+Copy code
+public class BmwCar implements Car {
+    @Override
+    public void drive() {
+        System.out.println("BMW car is driving");
+    }
+}
+Step 3️⃣ Create Factory Class (THIS IS KEY)
+java
+Copy code
+public class CarFactory {
+
+    public static Car createCar(String type) {
+
+        if (type.equalsIgnoreCase("tata")) {
+            return new TataCar();
+        }
+        else if (type.equalsIgnoreCase("bmw")) {
+            return new BmwCar();
+        }
+
+        throw new IllegalArgumentException("Unknown car type");
+    }
+	
+	public class Main {
+    public static void main(String[] args) {
+
+        Car car = CarFactory.createCar("tata");
+        car.drive();
+    }

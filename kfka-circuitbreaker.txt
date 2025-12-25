@@ -1,0 +1,130 @@
+java memory model
+The Java Memory Model is a specification that describes:
+
+How Java threads interact through memory.
+
+How changes made by one thread become visible to others.
+
+How concurrency issues like race conditions, reordering, and stale reads are handled.
+
+It ensures correct execution of multithreaded Java programs even on modern CPUs and compilers that can reorder instructions.
+
+Idempotency (VERY IMPORTANT for finance)
+
+“All financial operations are idempotent to prevent double charging.”
+
+Example:
+
+Each transaction has a unique transactionId
+
+Duplicate requests are safely ignored
+
+=============================================================================================
+
+📌 Kafka does NOT assign partitions to consumers directly
+📌 Kafka assigns partitions to a GROUP, then distributes within the group
+
+2️⃣ Offset Tracking (WHERE to resume)
+
+Offsets are stored like this:
+
+(groupId, topic, partition) → offset
+   @KafkaListener(
+        topics = "order-events",
+        groupId = "order-service-group" // 👈 consumer group
+    )
+	kafka--topic:
+	             part0: offset
+				 part1:
+				 part2: 
+				        comsumer group :
+						                consumer1:
+										consumer2:
+										consumer3:
+										
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    consumer:
+      group-id: order-service-group   # 👈 CONSUMER GROUP
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+	  
+	    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    public OrderProducer(KafkaTemplate<String, String> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    public void sendOrder(String orderId) {
+        String message = "Order created with ID " + orderId;
+
+        kafkaTemplate.send("order-events", orderId, message);
+		==========================================================================================================================================
+		<dependency>
+    <groupId>io.github.resilience4j</groupId>
+    <artifactId>resilience4j-spring-boot3</artifactId>
+</dependency>
+2️⃣ Configuration (application.yml)
+============
+yaml
+Copy code
+resilience4j:
+  circuitbreaker:
+    instances:
+      inventoryServiceCB:
+        failure-rate-threshold: 50        # % failures to open circuit
+        sliding-window-size: 10            # last 10 calls
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 10s   # stay OPEN for 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+  retry:
+    instances:
+      inventoryRetry:
+        max-attempts: 3
+        wait-duration: 500ms
+
+  bulkhead:
+    instances:
+      inventoryBulkhead:
+        max-concurrent-calls: 5
+        max-wait-duration: 0
+		
+		@Service
+public class InventoryService {
+
+    @CircuitBreaker(
+        name = "inventoryServiceCB",
+        fallbackMethod = "fallbackInventory"
+    )
+    public String checkStock(String productId) {
+        // Simulating downstream failure
+        if (productId.startsWith("fail")) {
+            throw new RuntimeException("Inventory service down");
+        }
+        return "Stock available for product " + productId;
+    }
+	
+	Bulkhead → Retry → CircuitBreaker → Remote Call
+
+Without Bulkhead- limit the number of thread  tht can be called 
+Order Service call inventory n payment service 
+   ↓
+Inventory (slow)
+   ↓
+All threads blocked ❌
+
+With Bulkhead
+Order Service
+ ├── Inventory (5 threads max)
+ └── Payment (separate threads)
+ ==========================
+						                 
