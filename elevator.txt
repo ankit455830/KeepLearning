@@ -1,0 +1,123 @@
+import java.util.*;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Elevator: runnable worker that moves floor-by-floor.
+ */
+class Elevator implements Runnable {
+    private final int id;                         // elevator identifier
+    private volatile int currentFloor = 0;       // current floor (volatile for visibility)
+    private volatile ElevatorState state = ElevatorState.IDLE;
+    private final Object lock = new Object();    // lock for destinations
+    // We'll hold destinations in a Sorted set depending on direction.
+    // For simplicity we'll use two sets: upDestinations (ascending), downDestinations (descending)
+    private final TreeSet<Integer> upDestinations = new TreeSet<>();               // natural ascending
+    private final TreeSet<Integer> downDestinations = new TreeSet<>(Comparator.reverseOrder()); // descending
+    private volatile Direction currentDirection = Direction.NONE;
+    private final int MAX_FLOOR;                  // helpful for validation
+    private final int MIN_FLOOR = 0;
+
+    public Elevator(int id, int maxFloor) {
+        this.id = id;
+        this.MAX_FLOOR = maxFloor;
+    }
+
+    public int getId() { return id; }
+    public int getCurrentFloor() { return currentFloor; }
+    public ElevatorState getState() { return state; }
+
+    // Add a destination: external controller will call this when assigning a request
+    public void addDestination(int floor) {
+        if (floor < MIN_FLOOR || floor > MAX_FLOOR) return; // guard
+        synchronized (lock) {
+            if (floor == currentFloor) {
+                // immediate stop if already here
+                openDoor();
+                return;
+            }
+            if (floor > currentFloor) {
+                upDestinations.add(floor);
+                if (currentDirection == Direction.NONE) currentDirection = Direction.UP;
+            } else {
+                downDestinations.add(floor);
+                if (currentDirection == Direction.NONE) currentDirection = Direction.DOWN;
+            }
+            // notify the elevator thread that there is new work
+            lock.notifyAll();
+        }
+    }
+
+    private void openDoor() {
+        state = ElevatorState.DOOR_OPEN;
+        // simulate door open/close
+        try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+        // after door operations, go to idle or continue
+        state = ElevatorState.IDLE;
+    }
+
+    // main run loop: move elevator one step at a time
+    public void run() {
+        while (state != ElevatorState.OUT_OF_SERVICE && state != ElevatorState.MAINTENANCE) {
+            Integer next = null;
+            synchronized (lock) {
+                // choose next floor based on currentDirection and destinations
+                if (currentDirection == Direction.UP || currentDirection == Direction.NONE) {
+                    if (!upDestinations.isEmpty()) {
+                        next = upDestinations.first(); // smallest greater floor
+                        currentDirection = Direction.UP;
+                    } else if (!downDestinations.isEmpty()) {
+                        next = downDestinations.first(); // largest lower floor (since comparator reversed)
+                        currentDirection = Direction.DOWN;
+                    }
+                } else { // currently going down
+                    if (!downDestinations.isEmpty()) {
+                        next = downDestinations.first();
+                        currentDirection = Direction.DOWN;
+                    } else if (!upDestinations.isEmpty()) {
+                        next = upDestinations.first();
+                        currentDirection = Direction.UP;
+                    }
+                }
+
+                if (next == null) {
+                    // nothing to do: set idle and wait
+                    currentDirection = Direction.NONE;
+                    state = ElevatorState.IDLE;
+                    try { lock.wait(); } catch (InterruptedException ignored) {}
+                    continue;
+                }
+            }
+
+            // move towards 'next' step by step
+            if (next > currentFloor) {
+                state = ElevatorState.MOVING_UP;
+                moveOneFloorUp();
+            } else if (next < currentFloor) {
+                state = ElevatorState.MOVING_DOWN;
+                moveOneFloorDown();
+            }
+
+            // if arrived at a floor that is in either destination set, stop and clear it
+            synchronized (lock) {
+                boolean stopped = false;
+                if (upDestinations.contains(currentFloor)) { upDestinations.remove(currentFloor); stopped = true; }
+                if (downDestinations.contains(currentFloor)) { downDestinations.remove(currentFloor); stopped = true; }
+                if (stopped) openDoor();
+            }
+        }
+        // ended: mark out of service
+        state = ElevatorState.OUT_OF_SERVICE;
+    }
+
+    private void moveOneFloorUp() {
+        // simulate time to move one floor
+        try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+        currentFloor++;
+    }
+
+    private void moveOneFloorDown() {
+        try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+        currentFloor--;
+    }
+}

@@ -1,0 +1,77 @@
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * ElevatorController: Singleton manager that receives external requests and assigns elevators.
+ */
+class ElevatorController {
+    private static ElevatorController instance;
+    private final List<Elevator> elevators = new ArrayList<>();
+    private final ExecutorService elevatorThreads;
+    private final int maxFloor;
+    // Simple queue for unassigned external requests (optional)
+    private final Queue<Request> pendingRequests = new LinkedList<>();
+
+    private ElevatorController(int numElevators, int maxFloor) {
+        this.maxFloor = maxFloor;
+        for (int i = 0; i < numElevators; i++) {
+            Elevator e = new Elevator(i, maxFloor);
+            elevators.add(e);
+        }
+        elevatorThreads = Executors.newFixedThreadPool(numElevators);
+        // start elevator threads
+        for (Elevator e : elevators) {
+            elevatorThreads.execute(e);
+        }
+    }
+
+    public static synchronized ElevatorController getInstance(int numElevators, int maxFloor) {
+        if (instance == null) instance = new ElevatorController(numElevators, maxFloor);
+        return instance;
+    }
+
+    // When a user presses the floor button (external), controller receives request
+    public void handleExternalRequest(int floor, Direction dir) {
+        Request r = new Request(floor, dir, true);
+        Elevator chosen = assignElevator(r);       // assign using nearest/idle-first
+        if (chosen == null) {
+            synchronized (pendingRequests) {
+                pendingRequests.add(r);           // store if no elevator available
+            }
+        } else {
+            chosen.addDestination(floor);
+        }
+    }
+
+    // internal requests (user inside elevator)
+    public void handleInternalRequest(int elevatorId, int destinationFloor) {
+        elevators.get(elevatorId).addDestination(destinationFloor);
+    }
+
+    // simple assignment algorithm: pick closest elevator (idle preferred), else minimal travel cost
+    private Elevator assignElevator(Request r) {
+        Elevator best = null;
+        int bestScore = Integer.MAX_VALUE;
+        for (Elevator e : elevators) {
+            if (e.getState() == ElevatorState.MAINTENANCE || e.getState() == ElevatorState.OUT_OF_SERVICE) continue;
+            int score = scoreElevator(e, r);
+            if (score < bestScore) {
+                bestScore = score;
+                best = e;
+            }
+        }
+        // tie-breakers can be added
+        return best;
+    }
+
+    // scoring function: lower is better
+    private int scoreElevator(Elevator e, Request r) {
+        int dist = Math.abs(e.getCurrentFloor() - r.floor);
+        // prefer idle elevators strongly
+        if (e.getState() == ElevatorState.IDLE) return dist;
+        // prefer elevators already moving towards the request
+        // (very simple heuristic; can be improved)
+        return dist + 5; // penalize non-idle
+    }
+}
