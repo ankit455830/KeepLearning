@@ -1,0 +1,47 @@
+5️⃣ Defensive copy for mutable fields
+public Date getDob() {
+    return new Date(dob.getTime());
+}
+
+public final class Person {
+    private final Date dob;
+
+    public Person(Date dob) {
+        this.dob = new Date(dob.getTime()); // defensive copy
+    }
+
+    public Date getDob() {
+        return new Date(dob.getTime());     // defensive copy
+    }
+	
+	
+	Both run code at Spring Boot startup; 
+	ApplicationRunner is just a more powerful version of CommandLineRunner for handling arguments.
+	bot have run nethod but have diffferent parameter :
+	they run once after the application ocntext is set :
+
+@Component
+@Order(1)---if  multiple :theb order will decide which will be executed first 
+public class FirstRunner implements CommandLineRunner  vs 
+    @Override
+    public void run(ApplicationArguments args)  vs 
+    @Override
+    public void run(strings ... args) {{ {
+    public void run(String... args) {
+        System.out.println("First");
+    }
+}
+java -jar app.jar arg1 arg2
+Load initial data into DB
+
+Print startup info
+
+Run migration scripts
+
+Test something at startup
+
+Non-option arguments are positional inputs that don’t start with --;
+ they represent data like filenames or commands, not configuration options.
+ 
+ java -jar app.jar --env=prod --debug file1.txt-non-optionarguments
+                         option arguments
